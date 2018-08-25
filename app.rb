@@ -1,5 +1,5 @@
 class App
-  DATE_FORMATS = %w[year month day hour min sec]
+  DATE_FORMATS = %w[year month day hour minute second]
 
   def call(env)
     @env = env
@@ -9,7 +9,7 @@ class App
   private
 
   def status
-    if @env['PATH_INFO'] == '/time'
+    if @env['PATH_INFO'] == '/time' && @env['QUERY_STRING'][0..6] == 'format='
       unknown_formats.empty? ? 200 : 400
     else
       404
