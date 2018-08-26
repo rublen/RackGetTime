@@ -1,42 +1,47 @@
+require_relative 'formatted_time'
+
 class App
   DATE_FORMATS = %w[year month day hour minute second]
 
   def call(env)
-    @env = env
-    [status, headers, body]
+    @request = Rack::Request.new(env)
+    build_response
   end
 
   private
 
-  def status
-    if @env['PATH_INFO'] == '/time' && @env['QUERY_STRING'][0..6] == 'format='
-      unknown_formats.empty? ? 200 : 400
-    else
-      404
-    end
+  def proper_url?
+    @request.path == '/time' && @request.query_string[0..6] == 'format='
   end
 
   def headers
     { 'Content-Type' => 'text/plain' }
   end
 
-  def body
-    return [] if status == 404
-    return ["Unknown time format #{unknown_formats}\n"] if status == 400
-    [
-      formats.map do |f|
-        time_item = Time.now.public_send(f)
-        f == 'year' ? time_item : "%02d" % [time_item]
-      end.join('-') + "\n"
-    ]
+  def build_response
+    if proper_url? && unknown_formats.empty?
+      [200, headers, time_response]
+    elsif proper_url?
+      [400, headers, unknown_format_response]
+    else
+      [404, headers, []]
+    end
+  end
+
+  def unknown_format_response
+    ["Unknown time format #{unknown_formats}\n"]
+  end
+
+  def time_response
+    [FormattedTime.new(Time.now, formats).applay_template('-') + "\n"]
   end
 
   def formats
-    @env['QUERY_STRING'].gsub('minute', 'min').gsub('second', 'sec').split("=")[1].split("%2C")
+    @request.params['format'].gsub('minute', 'min').gsub('second', 'sec').split(",")
   end
 
   def original_formats
-    @env['QUERY_STRING'].split("=")[1].split("%2C")
+    @request.params['format'].split(",")
   end
 
   def unknown_formats
