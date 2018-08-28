@@ -1,50 +1,45 @@
-require_relative 'formatted_time'
+require_relative 'time_formatter'
 
 class App
-  DATE_FORMATS = %w[year month day hour minute second]
-
   def call(env)
     @request = Rack::Request.new(env)
+    @formatter = TimeFormatter.new(@request.params['format'])
     build_response
   end
 
   private
+  attr_reader :request, :formatter
 
-  def proper_url?
-    @request.path == '/time' && @request.query_string[0..6] == 'format='
+  def build_response
+    case request.path
+    when '/time'
+      time_response
+    else
+      not_found_response
+    end
+  end
+
+  def time_response
+    if formatter.valid_format?
+      [200, headers, format_body]
+    else
+      [400, headers, unknown_format_body]
+    end
+  end
+
+  def not_found_response
+    [404, headers, []]
   end
 
   def headers
     { 'Content-Type' => 'text/plain' }
   end
 
-  def build_response
-    if proper_url? && unknown_formats.empty?
-      [200, headers, time_response]
-    elsif proper_url?
-      [400, headers, unknown_format_response]
-    else
-      [404, headers, []]
-    end
+  def format_body
+    [formatter.result('-') + "\n"]
   end
 
-  def unknown_format_response
-    ["Unknown time format #{unknown_formats}\n"]
-  end
-
-  def time_response
-    [FormattedTime.new(Time.now, formats).applay_template('-') + "\n"]
-  end
-
-  def formats
-    @request.params['format'].gsub('minute', 'min').gsub('second', 'sec').split(",")
-  end
-
-  def original_formats
-    @request.params['format'].split(",")
-  end
-
-  def unknown_formats
-    original_formats - DATE_FORMATS
+  def unknown_format_body
+    ["Unknown time format #{formatter.unknown_formats}\n"]
   end
 end
